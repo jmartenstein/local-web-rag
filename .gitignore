@@ -7,6 +7,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+test_output/
 .Python
 build/
 develop-eggs/
@@ -223,3 +224,4 @@ __marimo__/
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+.aider*
