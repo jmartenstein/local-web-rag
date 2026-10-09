@@ -7,6 +7,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+*.swp
 test_output/
 search_results/
 .Python
