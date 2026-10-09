@@ -2,7 +2,7 @@ import sys
 import json
 import os
 from datetime import datetime
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 
 def search(query, max_results=5):
     """
