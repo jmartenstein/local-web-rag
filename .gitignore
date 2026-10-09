@@ -8,6 +8,7 @@ __pycache__/
 
 # Distribution / packaging
 test_output/
+search_results/
 .Python
 build/
 develop-eggs/
