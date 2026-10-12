@@ -15,39 +15,47 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
 import re
 import sys
+import traceback
 from datetime import datetime
+from ddgs import DDGS
+from ddgs.exceptions import DDGSException
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from urllib.parse import quote
 
-try:
-    from duckduckgo_search import DDGS
-except ImportError:
-    print("Installing required package...")
-    os.system("pip install duckduckgo-search")
-    from duckduckgo_search import DDGS
+logger = logging.getLogger(__name__)
 
+class SearchError(Exception):
+    """Raised when a web search fails (as opposed to returning no results)."""
 
 class CompanyResearcher:
     """Main class for conducting company research using DuckDuckGo."""
     
-    def __init__(self, output_dir: str = "company_research_results"):
+    def __init__(self, output_dir: str = "search_results", ddgs_factory=DDGS):
         self.output_dir = Path(output_dir)
-        self.ddgs = DDGS()
+        self._ddgs_factory = ddgs_factory
         self.results_cache: Dict[str, Any] = {}
         
     def search(self, query: str, max_results: int = 10) -> List[Dict]:
-        """Perform DuckDuckGo search and return results."""
+        """Search DuckDuckGo.
+
+        Returns a list of dicts with 'title', 'body' and 'href' keys.
+        An empty list means the search worked but found nothing.
+
+        Raises:
+            SearchError: if the search itself failed (rate limit, network, etc.).
+        """
         try:
-            with self.ddgs.text(query, max_results=max_results) as results:
-                return results
-        except Exception as e:
-            print(f"Search error: {e}")
-            return []
-    
+            with self._ddgs_factory() as ddgs:
+                return list(ddgs.text(query,max_results=max_results))
+        except DDGSException as e:
+            logger.exception("Search failed for query %r", query)
+            raise SearchError(f"Search failed for {query!r}") from e
+
     def disambiguate_company(self, company_name: str, location: Optional[str] = None) -> Dict:
         """
         Confirm whether there are multiple companies with the same name.
@@ -58,18 +66,19 @@ class CompanyResearcher:
             search_query += f" in {location}"
         
         results = self.search(search_query, max_results=5)
+        print(f"[debug] got {len(results)} results; first keys: {list(results[0].keys()) if results else None}")
         
         if not results:
             return {"error": "No companies found", "name": company_name}
         
         # Extract unique companies from results
         companies = []
-        for result in results[:3]:
+        for result in results[:5]:
             title = result.get('title', '')
             snippet = result.get('body', '')
             
             # Check if this is a legitimate company (not a person or unrelated entity)
-            if 'company' in title.lower() or 'inc' in title.lower() or 'llc' in title.lower():
+            if 'ompany' in title.lower() or 'inc' in title.lower() or 'llc' in title.lower():
                 companies.append({
                     "name": title,
                     "snippet": snippet,
@@ -179,7 +188,7 @@ class CompanyResearcher:
     
     def get_tech_stack(self, company_url: str) -> Dict:
         """Look for engineering resumes and tech stack information."""
-        results = self.search(f"{company_url} engineers github linkedin", max_results=10)
+        results = self.search(f"{company_url} engineers careers job postings", max_results=10)
         
         tech_indicators = []
         for result in results:
@@ -270,7 +279,7 @@ def main():
     parser = argparse.ArgumentParser(description='Research companies using DuckDuckGo search')
     parser.add_argument('company_name', help='Name of the company to research')
     parser.add_argument('--location', '-l', help='Optional location filter (e.g., "San Francisco")')
-    parser.add_argument('--output-dir', '-o', default="company_research_results", 
+    parser.add_argument('--output-dir', '-o', default="search_results", 
                         help='Output directory for markdown files')
     
     args = parser.parse_args()
@@ -283,12 +292,12 @@ def main():
     
     # Step 1: Disambiguate company name
     print("\n[1/5] Checking for multiple companies with same name...")
-    disambiguation = researcher.disambiguate_company(args.company_name, args.location)
-    
-    if 'error' in disambiguation:
-        print(f"Error: {disambiguation['error']}")
-        sys.exit(1)
-    
+    try:
+        disambiguation = researcher.disambiguate_company(args.company_name, args.location)
+    except SearchError as e:
+        print(f"Search failed: {e}")
+        sys.exit(2)   
+ 
     if disambiguation['companies_found'] == 0:
         print("No companies found matching the query.")
         sys.exit(1)
@@ -321,7 +330,7 @@ def main():
         print(f"Found {len(funding['funding_rounds'])} funding-related results")
     
     # Step 5: Get tech stack
-    print("\n[5/5] Analyzing engineering resumes and tech stack...")
+    print("\n[5/5] Analyzing engineering job postings and tech stack...")
     tech = researcher.get_tech_stack(company_url)
     if tech['tech_stack_indicators']:
         unique_techs = set(t['tech'] for t in tech['tech_stack_indicators'])

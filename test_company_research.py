@@ -26,14 +26,14 @@ from company_research import CompanyResearcher
 class TestCompanyResearcher(unittest.TestCase):
     """Test cases for CompanyResearcher class."""
     
-    @patch('company_research.DDGS')
-    def setUp(self, mock_ddgs):
+    def setUp(self):
         """Set up test fixtures."""
-        self.mock_ddgs_instance = MagicMock()
-        mock_ddgs.return_value.__enter__ = MagicMock(return_value=self.mock_ddgs_instance)
-        mock_ddgs.return_value.__exit__ = MagicMock(return_value=False)
-        
-        self.researcher = CompanyResearcher(output_dir="test_output")
+        self.mock_ddgs = MagicMock()
+        self.mock_ddgs.__enter__.return_value = self.mock_ddgs
+        self.researcher = CompanyResearcher(
+            output_dir="test_output",
+            ddgs_factory=lambda: self.mock_ddgs,
+        )
     
     def test_search_returns_mock_results(self):
         """Test that search method returns results from mock."""
@@ -43,13 +43,13 @@ class TestCompanyResearcher(unittest.TestCase):
             'body': 'This is a test company snippet',
             'href': 'https://example.com'
         }
-        self.mock_ddgs_instance.text.return_value = [mock_result]
+        self.mock_ddgs.text.return_value = [mock_result]
         
         # Act
         results = self.researcher.search("test query")
         
         # Assert
-        self.assertEqual(len(results), 0)
+        self.assertEqual(len(results), 1)
     
     def test_disambiguate_company_with_location(self):
         """Test company disambiguation with location filter."""
@@ -59,7 +59,7 @@ class TestCompanyResearcher(unittest.TestCase):
             'body': 'Test Company located in San Francisco',
             'href': 'https://example.com'
         }
-        self.mock_ddgs_instance.text.return_value = [mock_result]
+        self.mock_ddgs.text.return_value = [mock_result]
         
         # Act
         result = self.researcher.disambiguate_company("Test", "San Francisco")
@@ -76,7 +76,7 @@ class TestCompanyResearcher(unittest.TestCase):
             'body': 'John Smith is the CEO of Test Company',
             'href': 'https://example.com'
         }
-        self.mock_ddgs_instance.text.return_value = [mock_result]
+        self.mock_ddgs.text.return_value = [mock_result]
         
         # Act
         result = self.researcher.get_leadership_team("https://example.com")
@@ -92,7 +92,7 @@ class TestCompanyResearcher(unittest.TestCase):
             'body': 'Test Company was founded in 2015 and established in 2016',
             'href': 'https://example.com'
         }
-        self.mock_ddgs_instance.text.return_value = [mock_result]
+        self.mock_ddgs.text.return_value = [mock_result]
         
         # Act
         result = self.researcher.get_founding_info("Test Company")
@@ -108,7 +108,7 @@ class TestCompanyResearcher(unittest.TestCase):
             'body': 'Test Company raised $10 million in Series A funding',
             'href': 'https://example.com'
         }
-        self.mock_ddgs_instance.text.return_value = [mock_result]
+        self.mock_ddgs.text.return_value = [mock_result]
         
         # Act
         result = self.researcher.get_funding_rounds("Test Company")
@@ -124,7 +124,7 @@ class TestCompanyResearcher(unittest.TestCase):
             'body': 'Our engineers use Python, JavaScript, React, and Node.js for development',
             'href': 'https://example.com'
         }
-        self.mock_ddgs_instance.text.return_value = [mock_result]
+        self.mock_ddgs.text.return_value = [mock_result]
         
         # Act
         result = self.researcher.get_tech_stack("https://example.com")
