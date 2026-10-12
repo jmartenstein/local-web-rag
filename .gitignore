@@ -8,6 +8,7 @@ __pycache__/
 
 # Distribution / packaging
 *.swp
+plan/
 test_output/
 search_results/
 .Python
